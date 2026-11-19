@@ -1,0 +1,22 @@
+import { expect, test } from '@playwright/test'
+
+test('exploration, task feedback and local footprint', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: /兴趣不是一次选择/ })).toBeVisible()
+  await page.getByRole('button', { name: /开始我的探索/ }).click()
+  await expect(page.getByRole('heading', { name: /社区准备改造/ })).toBeVisible()
+  await page.getByRole('button', { name: /哲学/ }).click()
+  await page.getByRole('button', { name: '添加第二项' }).click()
+  await page.getByRole('button', { name: /教育与心理/ }).click()
+  await page.getByRole('button', { name: /保存并继续/ }).click()
+  await expect(page.getByRole('heading', { name: /学校想减少午餐浪费/ })).toBeVisible()
+  await page.getByRole('button', { name: '学科体验', exact: true }).click()
+  await page.getByRole('textbox', { name: '任务判断' }).fill('我会先列出两种分配原则，再比较各自的影响。')
+  await page.getByRole('button', { name: '体验后仍感兴趣' }).click()
+  await page.getByRole('button', { name: '保存体验反馈' }).click()
+  await expect(page.getByText(/哲学 · 体验后仍感兴趣/)).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('button', { name: '我的足迹' })).toBeVisible()
+  await page.getByRole('button', { name: '我的足迹' }).click()
+  await expect(page.getByText(/哲学 · 体验后仍感兴趣/)).toBeVisible()
+})
