@@ -1,45 +1,36 @@
-import { describe, expect, it } from 'vitest'
-import { activities, activityQuestions, sceneQuestions, scoreSubjects } from './assessment'
-
-describe('assessment bank',()=>{
- it('contains 24 balanced scenes with four different subjects each',()=>{
-  expect(sceneQuestions).toHaveLength(24)
-  const counts=Array(12).fill(0)
-  for(const q of sceneQuestions){expect(new Set(q.choices).size).toBe(4);q.choices.forEach(i=>counts[i]++)}
-  expect(Math.max(...counts)-Math.min(...counts)).toBeLessThanOrEqual(1)
- })
- it('contains two independent items for each activity dimension',()=>{
-  expect(activities).toHaveLength(6);expect(activityQuestions).toHaveLength(12)
-  expect(activityQuestions.map(x=>x.dimension).sort()).toEqual([0,0,1,1,2,2,3,3,4,4,5,5])
+import {describe,expect,it} from 'vitest'
+import {activities,activityQuestions,scoreActivities,scoreSubjects,subjects} from './assessment'
+import {bankMeta,subjectQuestions} from './questionBank'
+describe('versioned exploratory bank',()=>{
+ it('has one distinct prompt per discipline and two per activity',()=>{
+  expect(bankMeta.validated).toBe(false)
+  expect(subjects).toHaveLength(12)
+  expect(subjectQuestions.map(q=>q.subject)).toEqual([...Array(12).keys()])
+  expect(new Set(subjectQuestions.map(q=>q.id)).size).toBe(12)
+  expect(activities).toHaveLength(6)
+  expect(activityQuestions.map(q=>q.dimension).sort()).toEqual([0,0,1,1,2,2,3,3,4,4,5,5])
  })
 })
-
-describe('scoreSubjects',()=>{
- it('does not turn missing or unknown ratings into zero',()=>{
-  const rows=scoreSubjects({sceneAnswers:[null,-2,-3],subjectRatings:Array(12).fill(null)})
-  expect(rows.every(row=>row.score===null)).toBe(true)
+describe('observational scoring',()=>{
+ it('keeps unanswered, unknown and explicit disinterest distinct',()=>{
+  const rows=scoreSubjects({subjectRatings:[null,-1,0,4,99,-5]})
+  expect(rows[0].topicEvidence).toBe('未回答')
+  expect(rows[1].topicEvidence).toBe('信息不足')
+  expect(rows[2].topicEvidence).toBe('不感兴趣')
+  expect(rows[2].topicRating).toBe(0)
+  expect(rows[3].topicRating).toBe(4)
+  expect(rows[4].topicRating).toBeNull()
+  expect(rows[5].topicRating).toBeNull()
  })
- it('normalizes available weights when one source is missing',()=>{
-  const ratings=Array(12).fill(null);ratings[0]=4
-  const rows=scoreSubjects({sceneAnswers:[],subjectRatings:ratings})
-  expect(rows[0].score).toBe(100)
+ it('never turns missing experiences into zero or merges them with topics',()=>{
+  const rows=scoreSubjects({subjectRatings:[4],experiences:[{subjectIndex:0,rating:null},{subjectIndex:0,rating:1},{subjectIndex:0,rating:3},{subjectIndex:7,rating:9}]})
+  expect(rows[0]).toMatchObject({topicRating:4,experienceRating:2,experienceCount:2})
+  expect(rows[1].experienceRating).toBeNull()
+  expect(rows[7].experienceCount).toBe(0)
  })
- it('uses experience only after at least two themes are completed',()=>{
-  const ratings=Array(12).fill(0);ratings[0]=4
-  const experience=Array(12).fill(0);experience[0]=0
-  const early=scoreSubjects({sceneAnswers:[0],subjectRatings:ratings,experienceRatings:experience,completedThemes:1})
-  const later=scoreSubjects({sceneAnswers:[0],subjectRatings:ratings,experienceRatings:experience,completedThemes:2})
-  expect(early[0].score).toBe(100);expect(later[0].score).toBe(45)
- })
- it('counts primary, secondary and all-interest without hiding explicit disinterest',()=>{
-  const topic=Array(12).fill(null)
-  const first=sceneQuestions[0].choices
-  const one=scoreSubjects({sceneAnswers:[first[0]],secondaryAnswers:[first[1]],subjectRatings:topic})
-  expect(one[first[0]].score).toBe(100)
-  expect(one[first[1]].score).toBe(50)
-  const all=scoreSubjects({sceneAnswers:[-4],subjectRatings:topic})
-  expect(first.every(i=>all[i].score===100)).toBe(true)
-  const none=scoreSubjects({sceneAnswers:[-1],subjectRatings:topic})
-  expect(first.every(i=>none[i].score===0)).toBe(true)
+ it('keeps activity dimensions separate and rejects bad input',()=>{
+  expect(scoreActivities([0,4,-1,null,4,4])[0]).toMatchObject({mean:2,answered:2})
+  expect(scoreActivities([0,4,-1,null,4,4])[1]).toMatchObject({mean:null,answered:0})
+  expect(scoreActivities('bad').every(x=>x.mean===null)).toBe(true)
  })
 })
